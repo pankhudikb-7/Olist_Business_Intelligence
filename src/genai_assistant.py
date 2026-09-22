@@ -277,15 +277,12 @@ def render_dashboard_filters(
         )
 
         st.date_input(
-            "Order Date Range",
-            value=st.session_state[
-                "order_date_range"
-            ],
-            min_value=min_date,
-            max_value=max_date,
-            key="order_date_range",
+        "Order Date Range",
+        min_value=min_date,
+        max_value=max_date,
+        key="order_date_range",
         )
-
+        
         selected_state = st.session_state.get(
             "customer_state_filter",
             "All States",
