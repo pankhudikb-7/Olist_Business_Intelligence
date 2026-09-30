@@ -158,7 +158,7 @@ def render_chart(result):
             y=alt.Y("label:N", title=None, sort="-x"),
             tooltip=["label:N", alt.Tooltip("value:Q", format=",.2f")],
         )
-    st.altair_chart(chart.properties(height=320), use_container_width=True)
+    st.altair_chart(chart.properties(height=320), width="stretch")
 
 
 with st.sidebar:

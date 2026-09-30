@@ -73,6 +73,7 @@ def format_compact_currency(value):
 
 
 datasets, sales_master = load_payment_data()
+st.write("PAYMENT DATA LOADED")
 
 
 # =========================================================
@@ -402,25 +403,21 @@ with dashboard_layout(datasets, sales_master):
 
     kpi_columns = st.columns(4)
 
-
-for column, (label, value) in zip(
-    kpi_columns,
-    kpis,
-):
-
-    with column:
-
-        st.markdown(
-            f"""
-            <div class="kpi-card">
-                <span class="kpi-label">{label}</span>
-                <br>
-                <span class="kpi-value">{value}</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
+    for column, (label, value) in zip(
+        kpi_columns,
+        kpis,
+    ):
+        with column:
+            st.markdown(
+                f"""
+                <div class="kpi-card">
+                    <span class="kpi-label">{label}</span>
+                    <br>
+                    <span class="kpi-value">{value}</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     # =====================================================
     # CHART CONSTANTS

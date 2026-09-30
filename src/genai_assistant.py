@@ -91,7 +91,7 @@ def _render_panel(
         "Ask",
         key="genai_ask_button",
         type="primary",
-        use_container_width=True,
+        width="stretch",
     ):
 
         if question.strip():
@@ -278,11 +278,14 @@ def render_dashboard_filters(
 
         st.date_input(
         "Order Date Range",
+        value=st.session_state[
+        "order_date_range"
+        ],
         min_value=min_date,
         max_value=max_date,
         key="order_date_range",
-        )
-        
+    )
+
         selected_state = st.session_state.get(
             "customer_state_filter",
             "All States",
