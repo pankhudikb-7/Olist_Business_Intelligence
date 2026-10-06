@@ -248,6 +248,10 @@ def _initialize_dashboard_filters(
 # SHARED DASHBOARD FILTERS
 # =========================================================
 
+# =========================================================
+# SHARED DASHBOARD FILTERS
+# =========================================================
+
 def render_dashboard_filters(
     datasets,
     sales_master,
@@ -266,17 +270,28 @@ def render_dashboard_filters(
     # Persistent filter values
     # -----------------------------------------------------
 
-    if "saved_customer_state" not in st.session_state:
-        st.session_state["saved_customer_state"] = "All States"
+    old_range = st.session_state.get(
+        "saved_order_date_range",
+        (min_date, max_date),
+    )
 
-    if "saved_order_date_range" not in st.session_state:
-        st.session_state["saved_order_date_range"] = (
-            min_date,
-            max_date,
+    if "saved_customer_state" not in st.session_state:
+        st.session_state["saved_customer_state"] = (
+            "All States"
+        )
+
+    if "saved_order_start_date" not in st.session_state:
+        st.session_state["saved_order_start_date"] = (
+            old_range[0]
+        )
+
+    if "saved_order_end_date" not in st.session_state:
+        st.session_state["saved_order_end_date"] = (
+            old_range[1]
         )
 
     # -----------------------------------------------------
-    # Callbacks to save selections
+    # Callbacks
     # -----------------------------------------------------
 
     def save_customer_state():
@@ -284,10 +299,39 @@ def render_dashboard_filters(
             st.session_state["customer_state_widget"]
         )
 
-    def save_order_date_range():
-        st.session_state["saved_order_date_range"] = (
-            st.session_state["order_date_widget"]
+    def save_start_date():
+        selected_start = (
+            st.session_state["start_date_widget"]
         )
+
+        st.session_state["saved_order_start_date"] = (
+            selected_start
+        )
+
+        if (
+            selected_start
+            > st.session_state["saved_order_end_date"]
+        ):
+            st.session_state["saved_order_end_date"] = (
+                selected_start
+            )
+
+    def save_end_date():
+        selected_end = (
+            st.session_state["end_date_widget"]
+        )
+
+        st.session_state["saved_order_end_date"] = (
+            selected_end
+        )
+
+        if (
+            selected_end
+            < st.session_state["saved_order_start_date"]
+        ):
+            st.session_state["saved_order_start_date"] = (
+                selected_end
+            )
 
     # -----------------------------------------------------
     # Sidebar filters
@@ -299,12 +343,14 @@ def render_dashboard_filters(
             "### Dashboard Filters"
         )
 
+        state_options = (
+            ["All States"] + customer_states
+        )
+
         st.selectbox(
             "Customer State",
-            ["All States"] + customer_states,
-            index=(
-                ["All States"] + customer_states
-            ).index(
+            state_options,
+            index=state_options.index(
                 st.session_state[
                     "saved_customer_state"
                 ]
@@ -314,14 +360,29 @@ def render_dashboard_filters(
         )
 
         st.date_input(
-            "Order Date Range",
+            "Start Date",
             value=st.session_state[
-                "saved_order_date_range"
+                "saved_order_start_date"
             ],
             min_value=min_date,
+            max_value=st.session_state[
+                "saved_order_end_date"
+            ],
+            key="start_date_widget",
+            on_change=save_start_date,
+        )
+
+        st.date_input(
+            "End Date",
+            value=st.session_state[
+                "saved_order_end_date"
+            ],
+            min_value=st.session_state[
+                "saved_order_start_date"
+            ],
             max_value=max_date,
-            key="order_date_widget",
-            on_change=save_order_date_range,
+            key="end_date_widget",
+            on_change=save_end_date,
         )
 
         selected_state = st.session_state.get(
@@ -329,28 +390,27 @@ def render_dashboard_filters(
             "All States",
         )
 
-        selected_dates = st.session_state.get(
-            "saved_order_date_range"
+        selected_start = st.session_state.get(
+            "saved_order_start_date",
+            min_date,
+        )
+
+        selected_end = st.session_state.get(
+            "saved_order_end_date",
+            max_date,
         )
 
         st.caption(
             f"State: {selected_state}"
         )
 
-        if (
-            isinstance(
-                selected_dates,
-                (tuple, list),
-            )
-            and len(selected_dates) == 2
-        ):
+        st.caption(
+            f"Dates: {selected_start} to {selected_end}"
+        )
+# =========================================================
+# COMPATIBILITY FILTER FUNCTION
+# =========================================================
 
-            st.caption(
-                f"Dates: "
-                f"{selected_dates[0]} "
-                f"to "
-                f"{selected_dates[1]}"
-            )
 # =========================================================
 # COMPATIBILITY FILTER FUNCTION
 # =========================================================
@@ -362,12 +422,15 @@ def apply_dashboard_filters(
     date_range=None,
 ):
     """
-    Apply the shared Customer State and Order Date Range
-    filters and return filtered datasets and sales master.
+    Apply the shared Customer State and separate
+    Start Date / End Date filters.
 
-    This function keeps compatibility with dashboard pages
-    that still call apply_dashboard_filters().
+    Returns filtered datasets and filtered sales master.
     """
+
+    # -----------------------------------------------------
+    # GET SELECTED FILTER VALUES
+    # -----------------------------------------------------
 
     selected_customer_state = (
         customer_state
@@ -381,8 +444,13 @@ def apply_dashboard_filters(
     selected_date_range = (
         date_range
         if date_range is not None
-        else st.session_state.get(
-            "saved_order_date_range"
+        else (
+            st.session_state.get(
+                "saved_order_start_date"
+            ),
+            st.session_state.get(
+                "saved_order_end_date"
+            ),
         )
     )
 
@@ -404,7 +472,9 @@ def apply_dashboard_filters(
         filtered_customers = customers.copy()
 
     customer_ids = (
-        filtered_customers["customer_id"]
+        filtered_customers[
+            "customer_id"
+        ]
         .unique()
     )
 
@@ -415,39 +485,51 @@ def apply_dashboard_filters(
     orders = datasets["orders"]
 
     filtered_orders = orders[
-        orders["customer_id"].isin(customer_ids)
+        orders["customer_id"].isin(
+            customer_ids
+        )
     ].copy()
 
     # -----------------------------------------------------
     # ORDER DATE FILTER
     # -----------------------------------------------------
 
-    if selected_date_range is not None:
+    if (
+        isinstance(
+            selected_date_range,
+            (list, tuple),
+        )
+        and len(selected_date_range) == 2
+    ):
 
+        start_date = pd.to_datetime(
+            selected_date_range[0],
+            errors="coerce",
+        )
+
+        end_date = pd.to_datetime(
+            selected_date_range[1],
+            errors="coerce",
+        )
+
+        purchase_dates = pd.to_datetime(
+            filtered_orders[
+                "order_purchase_timestamp"
+            ],
+            errors="coerce",
+        )
+
+        # Only apply the date filter when
+        # valid selected dates exist.
         if (
-            isinstance(
-                selected_date_range,
-                (list, tuple),
-            )
-            and len(selected_date_range) == 2
+            pd.notna(start_date)
+            and pd.notna(end_date)
+            and purchase_dates.notna().any()
         ):
 
-            start_date = pd.to_datetime(
-                selected_date_range[0]
-            )
-
-            end_date = pd.to_datetime(
-                selected_date_range[1]
-            )
-
-            purchase_dates = pd.to_datetime(
-                filtered_orders[
-                    "order_purchase_timestamp"
-                ]
-            )
-
             date_mask = (
-                purchase_dates.dt.normalize()
+                purchase_dates
+                .dt.normalize()
                 .between(
                     start_date.normalize(),
                     end_date.normalize(),
@@ -465,7 +547,9 @@ def apply_dashboard_filters(
     # -----------------------------------------------------
 
     order_ids = (
-        filtered_orders["order_id"]
+        filtered_orders[
+            "order_id"
+        ]
         .unique()
     )
 
@@ -475,38 +559,71 @@ def apply_dashboard_filters(
 
     filtered_datasets = datasets.copy()
 
-    filtered_datasets["customers"] = (
-        filtered_customers
-    )
+    filtered_datasets[
+        "customers"
+    ] = filtered_customers
 
-    filtered_datasets["orders"] = (
-        filtered_orders
-    )
+    filtered_datasets[
+        "orders"
+    ] = filtered_orders
+
+    # -----------------------------------------------------
+    # FILTER REVIEWS
+    # -----------------------------------------------------
 
     if "order_reviews" in datasets:
 
-        filtered_datasets["order_reviews"] = (
-            datasets["order_reviews"][
-                datasets["order_reviews"]["order_id"]
-                .isin(order_ids)
+        filtered_datasets[
+            "order_reviews"
+        ] = (
+            datasets[
+                "order_reviews"
+            ][
+                datasets[
+                    "order_reviews"
+                ][
+                    "order_id"
+                ].isin(order_ids)
             ].copy()
         )
+
+    # -----------------------------------------------------
+    # FILTER ORDER ITEMS
+    # -----------------------------------------------------
 
     if "order_items" in datasets:
 
-        filtered_datasets["order_items"] = (
-            datasets["order_items"][
-                datasets["order_items"]["order_id"]
-                .isin(order_ids)
+        filtered_datasets[
+            "order_items"
+        ] = (
+            datasets[
+                "order_items"
+            ][
+                datasets[
+                    "order_items"
+                ][
+                    "order_id"
+                ].isin(order_ids)
             ].copy()
         )
 
+    # -----------------------------------------------------
+    # FILTER PAYMENTS
+    # -----------------------------------------------------
+
     if "order_payments" in datasets:
 
-        filtered_datasets["order_payments"] = (
-            datasets["order_payments"][
-                datasets["order_payments"]["order_id"]
-                .isin(order_ids)
+        filtered_datasets[
+            "order_payments"
+        ] = (
+            datasets[
+                "order_payments"
+            ][
+                datasets[
+                    "order_payments"
+                ][
+                    "order_id"
+                ].isin(order_ids)
             ].copy()
         )
 
@@ -516,19 +633,21 @@ def apply_dashboard_filters(
 
     filtered_sales_master = (
         sales_master[
-            sales_master["order_id"].isin(order_ids)
+            sales_master[
+                "order_id"
+            ].isin(order_ids)
         ].copy()
     )
+
+    # -----------------------------------------------------
+    # RETURN
+    # -----------------------------------------------------
 
     return (
         filtered_datasets,
         filtered_sales_master,
     )
 
-
-# =========================================================
-# DASHBOARD LAYOUT
-# =========================================================
 # =========================================================
 # DASHBOARD LAYOUT
 # =========================================================
