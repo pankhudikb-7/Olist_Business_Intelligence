@@ -262,6 +262,37 @@ def render_dashboard_filters(
         sales_master,
     )
 
+    # -----------------------------------------------------
+    # Persistent filter values
+    # -----------------------------------------------------
+
+    if "saved_customer_state" not in st.session_state:
+        st.session_state["saved_customer_state"] = "All States"
+
+    if "saved_order_date_range" not in st.session_state:
+        st.session_state["saved_order_date_range"] = (
+            min_date,
+            max_date,
+        )
+
+    # -----------------------------------------------------
+    # Callbacks to save selections
+    # -----------------------------------------------------
+
+    def save_customer_state():
+        st.session_state["saved_customer_state"] = (
+            st.session_state["customer_state_widget"]
+        )
+
+    def save_order_date_range():
+        st.session_state["saved_order_date_range"] = (
+            st.session_state["order_date_widget"]
+        )
+
+    # -----------------------------------------------------
+    # Sidebar filters
+    # -----------------------------------------------------
+
     with st.sidebar:
 
         st.markdown(
@@ -270,29 +301,36 @@ def render_dashboard_filters(
 
         st.selectbox(
             "Customer State",
-            [
-                "All States"
-            ] + customer_states,
-            key="customer_state_filter",
+            ["All States"] + customer_states,
+            index=(
+                ["All States"] + customer_states
+            ).index(
+                st.session_state[
+                    "saved_customer_state"
+                ]
+            ),
+            key="customer_state_widget",
+            on_change=save_customer_state,
         )
 
         st.date_input(
-        "Order Date Range",
-        value=st.session_state[
-        "order_date_range"
-        ],
-        min_value=min_date,
-        max_value=max_date,
-        key="order_date_range",
-    )
+            "Order Date Range",
+            value=st.session_state[
+                "saved_order_date_range"
+            ],
+            min_value=min_date,
+            max_value=max_date,
+            key="order_date_widget",
+            on_change=save_order_date_range,
+        )
 
         selected_state = st.session_state.get(
-            "customer_state_filter",
+            "saved_customer_state",
             "All States",
         )
 
         selected_dates = st.session_state.get(
-            "order_date_range"
+            "saved_order_date_range"
         )
 
         st.caption(
@@ -313,7 +351,6 @@ def render_dashboard_filters(
                 f"to "
                 f"{selected_dates[1]}"
             )
-
 # =========================================================
 # COMPATIBILITY FILTER FUNCTION
 # =========================================================
@@ -336,7 +373,7 @@ def apply_dashboard_filters(
         customer_state
         if customer_state is not None
         else st.session_state.get(
-            "customer_state_filter",
+            "saved_customer_state",
             "All States",
         )
     )
@@ -344,10 +381,8 @@ def apply_dashboard_filters(
     selected_date_range = (
         date_range
         if date_range is not None
-        else (
-            st.session_state.get("order_date_range")
-            or st.session_state.get("date_range")
-            or st.session_state.get("dashboard_date_range")
+        else st.session_state.get(
+            "saved_order_date_range"
         )
     )
 
